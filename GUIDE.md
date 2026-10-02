@@ -96,6 +96,16 @@ Từ Bước 1 trở đi, mọi backbone đều dùng **cùng một công thức
 
 Đây là điểm xuất phát, không phải chân lý. Với ViT/Swin, LR có thể cần nhỏ hơn. Nếu bạn đổi công thức nền, hãy đổi **cho tất cả** backbone và ghi lại lý do.
 
+### 1.5 Dùng bộ khung `starter/` và `eval.py`
+
+Chi tiết từng file ở [`README.md` mục 2.4](README.md#24-công-cụ-evalpy-và-bộ-khung-starter). Quy trình gợi ý:
+
+1. Chép `starter/` thành `code/` trong thư mục bài nộp. Mở `lab_day2.ipynb` trên Colab hoặc Kaggle, chạy ô cài đặt và tải dữ liệu.
+2. Hoàn thiện theo thứ tự: `dataset.py` → `model.py` → `losses.py` → `train.py`. Sau mỗi file, tự viết một kiểm tra nhỏ (ví dụ focal loss với `γ = 0` phải bằng CE; một batch phải overfit được). **Dừng lại ở bước kiểm tra pipeline (mục 1.3) trước khi chạy thí nghiệm thật.**
+3. Mọi thí nghiệm đi qua **một** hàm `train.run(Config(...))`; đổi thí nghiệm bằng cách đổi `Config`, không copy code.
+4. Khi cần ghi dự đoán, dùng nguyên `eval.save_predictions(...)` (`from eval import save_predictions`). Đừng tự viết lại định dạng.
+5. Trước khi nộp, chạy `eval.py score` cho từng nhóm file và `eval.py grade` cho chung kết so với mốc. Nếu `eval.py` báo lỗi định dạng, sửa code ghi file của bạn, không sửa `eval.py`.
+
 ---
 
 ## 2. Bước 1: So sánh backbone (≥ 5)
@@ -211,7 +221,7 @@ Với mỗi phương pháp ghi: macro-F1 val, top-1 val, ECE (nếu đo), độ 
 
 1. **Chốt cấu hình** dựa hoàn toàn trên **val**: backbone, công thức huấn luyện (kết hợp tốt nhất từ Bước 2), phương pháp suy luận (Bước 3).
 2. Huấn luyện lại cấu hình đó với **≥ 3 seed khác nhau** (mã `F01`, `F02`, `F03`...). Báo cáo macro-F1 và top-1 val ở dạng mean ± std.
-3. Chạy **test đúng một lần cho mỗi seed** trên toàn bộ tập test, cho các cấu hình cuối cùng **và** mốc `T00`/`I00` (cùng số seed, để tính mức cải thiện). Báo cáo mean ± std của macro-F1, top-1, F1 từng lớp (đặc biệt Chinee apple và Snake weed), ECE. **Lưu file dự đoán** `predictions/<exp_id>_seed<k>_test.csv` theo định dạng ở [`README.md` mục 2.2](README.md#22-cách-đánh-giá-bắt-buộc); giảng viên sẽ tính lại chỉ số từ các file này. Đối chiếu kết quả với số tham khảo ở [`README.md` mục 2.3](README.md#23-số-tham-khảo-từ-bài-báo-gốc), nhớ rằng điều kiện huấn luyện của bài báo (100 epoch, augmentation mạnh) khác bài lab.
+3. Chạy **test đúng một lần cho mỗi seed** trên toàn bộ tập test, cho các cấu hình cuối cùng **và** mốc `T00`/`I00` (cùng số seed, để tính mức cải thiện). Báo cáo mean ± std của macro-F1, top-1, F1 từng lớp (đặc biệt Chinee apple và Snake weed), ECE. **Lưu file dự đoán** `predictions/<exp_id>_seed<k>_test.csv` theo định dạng ở [`README.md` mục 2.2](README.md#22-cách-đánh-giá-bắt-buộc); giảng viên sẽ tính lại chỉ số từ các file này. Chạy `python eval.py score ...` và `python eval.py grade ...` ([`README.md` mục 2.4](README.md#24-công-cụ-evalpy-và-bộ-khung-starter)) để lấy số liệu đưa vào xlsx và báo cáo. Đối chiếu kết quả với số tham khảo ở [`README.md` mục 2.3](README.md#23-số-tham-khảo-từ-bài-báo-gốc), nhớ rằng điều kiện huấn luyện của bài báo (100 epoch, augmentation mạnh) khác bài lab.
 4. So sánh với mốc: **cấu hình tốt nhất cải thiện bao nhiêu so với công thức nền + 1-view?** Chênh lệch có lớn hơn std không?
 5. Vẽ **ma trận nhầm lẫn** trên test, nêu lớp nào còn nhầm nhiều nhất và đưa ra giả thuyết nguyên nhân (xem vài ảnh bị dự đoán sai).
 6. Nếu giảng viên yêu cầu thêm tiêu chí triển khai (ví dụ độ trễ ≤ X ms), hãy nêu **hai** cấu hình: tốt nhất về độ chính xác (ngoại tuyến) và tốt nhất khi có ràng buộc thời gian thực.

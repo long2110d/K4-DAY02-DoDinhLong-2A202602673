@@ -87,7 +87,7 @@ Thiếu một trong các mục sau thì bài **chưa được chấm** (hoặc b
 
 | Tiêu chí | Điểm |
 |---|---|
-| Code tự viết, có cấu trúc rõ (model, data/augment, train, loss, inference, benchmark), đọc được, một hàm train dùng chung cho mọi cấu hình | 2 |
+| Hoàn thiện đúng và đầy đủ bộ khung `starter/` (không còn `NotImplementedError`; có kiểm tra tự viết cho các phần dễ sai như focal `γ=0`, CutMix, gộp BN); một hàm train dùng chung cho mọi cấu hình; code đọc được. Không sửa `eval.py` | 2 |
 | README riêng có link notebook Colab/Kaggle, version thư viện, thứ tự chạy; người khác chạy lại được và ra kết quả cùng mức | 2 |
 
 ### I. Chất lượng model đạt được (20 điểm)
@@ -165,7 +165,9 @@ Ghi chú:
 - [ ] ≥ 4 phương pháp suy luận, độ trễ p50/p95/p99 đo đúng cách.
 - [ ] Cấu hình cuối và mốc (`T00` + `I00`) chạy ≥ 3 seed, báo cáo mean ± std; test chạy **một lần mỗi seed**.
 - [ ] `predictions/<exp_id>_seed<k>_test.csv` đủ cho chung kết và mốc, mọi seed, đúng cột.
-- [ ] Đã tự tính lại macro-F1, top-1, recall Chinee apple và Snake weed từ file dự đoán và khớp với báo cáo.
+- [ ] `python eval.py score` chạy không lỗi trên mọi nhóm file dự đoán; macro-F1, top-1, recall Chinee apple và Snake weed trong báo cáo khớp kết quả của `eval.py`.
+- [ ] Đã chạy `python eval.py grade` và xem kết quả phần I (đề xuất).
+- [ ] Không còn `NotImplementedError` trong `code/`; không sửa `eval.py`.
 - [ ] Đã nêu một cấu hình có p95 ≤ 100 ms ở batch 1 (hoặc giải thích vì sao không có).
 - [ ] `results.xlsx` đủ sheet, `exp_id` khớp ảnh trong `curves/`.
 - [ ] Mỗi thí nghiệm huấn luyện có ảnh biểu đồ riêng.

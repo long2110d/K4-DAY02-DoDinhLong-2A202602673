@@ -3,13 +3,16 @@
 > Track 4 · Ngày 2 · *Tích chập, chuỗi, attention · backbone · huấn luyện · suy luận*
 > Bài lab này mở rộng **Lab #2** trong slide Day 2. Slide chỉ yêu cầu 1 backbone, 3 cách khởi tạo, có/không CutMix và TTA. Ở đây bạn làm đầy đủ: **≥ 5 backbone**, **nhiều công thức huấn luyện**, **nhiều cách suy luận**, rồi chọn cấu hình tốt nhất và báo cáo.
 
-Thư mục này chỉ có **hướng dẫn và tiêu chí chấm**. **Không có code mẫu**: bạn tự viết model, train, inference và đo độ trễ. Làm vậy để bạn hiểu từng thành phần trong slide, không chỉ chạy lại code có sẵn.
+Repo gồm **hướng dẫn, tiêu chí chấm, bộ khung code (pseudo-code) và công cụ đánh giá**. Bộ khung `starter/` chỉ có chữ ký hàm, docstring và các bước `TODO`: **bạn tự viết phần ruột** (model, loss, augmentation, vòng huấn luyện, TTA, đo độ trễ). Riêng `eval.py` đã hoàn chỉnh, bạn không sửa. Làm vậy để bạn hiểu từng thành phần trong slide, nhưng vẫn đo bằng cùng một thước.
 
 | File | Dùng để làm gì |
 |---|---|
-| `README.md` (file này) | Tổng quan, dataset, sản phẩm phải nộp, cách nộp bài |
+| `README.md` (file này) | Tổng quan, dataset, quy tắc chia dữ liệu, cách đánh giá, sản phẩm phải nộp, cách nộp bài |
 | [`GUIDE.md`](GUIDE.md) | Quy trình từng bước, danh sách thí nghiệm, cấu trúc file xlsx và báo cáo, bẫy thường gặp |
 | [`RUBRIC.md`](RUBRIC.md) | Thang điểm 100, tiêu chí đạt, lỗi bị trừ điểm |
+| [`eval.py`](eval.py) | **Đã hoàn chỉnh.** Tính chỉ số đúng định nghĩa ở mục 2.2 và tự chấm phần I của RUBRIC (mục 2.4) |
+| [`starter/`](starter) | **Pseudo-code** để bạn hoàn thiện: `dataset.py`, `model.py`, `losses.py`, `train.py`, `inference.py`, `benchmark.py`, `lab_day2.ipynb` |
+| [`tests/`](tests) | Test của `eval.py` và của bộ khung (chạy được không cần GPU) |
 
 ---
 
@@ -127,6 +130,38 @@ Lưu ý khi so sánh với kết quả của bạn:
 - Các số theo lớp của bài báo được coi là tương đương recall theo lớp khi đối chiếu (giả định, bài báo không nói rõ).
 - Bài báo chia ngẫu nhiên, không theo địa điểm, nên điểm test có thể hơi lạc quan so với khi gặp địa điểm mới. Hãy nêu điều này trong phần *Hạn chế* của báo cáo.
 
+### 2.4 Công cụ: `eval.py` và bộ khung `starter/`
+
+**`eval.py` (đã hoàn chỉnh, chỉ cần numpy và pandas).** Mọi con số của bạn phải khớp kết quả của file này.
+
+```bash
+# Chỉ số của một cấu hình (nhiều seed): top-1, macro-F1, balanced acc, theo lớp, ECE, mean ± std
+python eval.py score --pred "predictions/F01_seed*_test.csv" \
+    --test-csv data/labels/test_subset0.csv --labels data/labels/labels.csv --tag F01 --out eval_out
+
+# Tự chấm phần I của RUBRIC (chung kết so với mốc)
+python eval.py grade --final "predictions/F01_seed*_test.csv" --baseline "predictions/T00_seed*_test.csv" \
+    --test-csv data/labels/test_subset0.csv --labels data/labels/labels.csv
+```
+
+- `score` kiểm tra định dạng file dự đoán (đủ cột `p0..p8`, xác suất cộng bằng 1, `y_pred` đúng argmax), đối chiếu tên ảnh và nhãn với `test_subset0.csv`, rồi in bảng và lưu JSON/CSV.
+- `grade` tính điểm đề xuất cho I1–I4 (và I5 nếu bạn truyền `--latency-p95-ms`). Thêm `--uncal` (dự đoán test của cùng cấu hình khi chưa temperature scaling) để chấm I4(a), và `--final-val` (dự đoán val của chung kết, đặt tên `<exp_id>_seed<k>_val.csv`) để chấm I4(b). Ngưỡng điểm là **tạm thời** và nằm ở đầu file `eval.py`.
+- Lỗi định dạng làm `eval.py` thoát với mã 2 và in rõ file nào, dòng nào sai.
+
+**Bộ khung `starter/` (pseudo-code, bạn hoàn thiện):**
+
+| File | Bạn làm gì |
+|---|---|
+| `dataset.py` | Đọc CSV, kiểm tra chia dữ liệu (S1–S4), transform và augmentation, `Dataset`, `DataLoader` |
+| `model.py` | Backbone qua `timm`, đóng băng, 3 nhóm tham số (slide trang 52), đếm params/GMAC |
+| `losses.py` | Label smoothing, focal loss, trọng số lớp, Mixup/CutMix |
+| `train.py` | Một hàm `run(cfg)` dùng chung: AMP, warmup + cosine, EMA, chọn checkpoint theo macro-F1 val, vẽ đường cong |
+| `inference.py` | TTA, gộp xác suất/logit, ensemble, temperature scaling, gộp BatchNorm |
+| `benchmark.py` | Đo độ trễ p50/p95/p99 đúng cách |
+| `lab_day2.ipynb` | Notebook Colab/Kaggle: phần cài đặt và tải dữ liệu đã viết sẵn, các ô `TODO` là phần của bạn |
+
+Cách dùng: chép `starter/` thành `code/` trong thư mục bài nộp của bạn, hoàn thiện các `TODO`, giữ nguyên **tên hàm và kiểu dữ liệu vào/ra** ghi trong docstring (bạn được thêm hàm, tham số, file mới). Chạy test của repo bằng `python -m unittest discover -s tests` (cần scikit-learn).
+
 ## 3. Môi trường gợi ý: Google Colab hoặc Kaggle
 
 | Nền tảng | Ưu điểm | Lưu ý |
@@ -147,9 +182,9 @@ Gợi ý chung:
 | 1 | `results.xlsx` | Bảng so sánh **tất cả** thí nghiệm (backbone, training, inference, kết quả cuối, độ trễ). Cấu trúc sheet và cột ở GUIDE mục 6.1 |
 | 2 | `report.md` (hoặc `report.pdf`) | Báo cáo kết luận: thiết lập, kết quả, phân tích, cấu hình tốt nhất, hạn chế. Dàn ý ở GUIDE mục 6.3 |
 | 3 | `curves/` | **Ảnh biểu đồ training của từng thí nghiệm** (loss và metric theo epoch, train và val), một ảnh `.png` cho mỗi `exp_id` |
-| 4 | `code/` | **Toàn bộ code** do bạn viết: định nghĩa model, dataset/augmentation, train loop, các loss, inference/TTA/ensemble, đo độ trễ, tạo bảng và biểu đồ |
+| 4 | `code/` | **Toàn bộ code** của bạn, bắt đầu từ bộ khung `starter/` đã hoàn thiện: model, dataset/augmentation, train loop, các loss, inference/TTA/ensemble, đo độ trễ, tạo bảng và biểu đồ. Dùng `eval.py` gốc, không sửa |
 | 5 | `README.md` riêng của bạn | Link notebook Colab/Kaggle chạy lại được, phiên bản thư viện, lệnh/thứ tự chạy, seed đã dùng |
-| 6 | `predictions/` | File dự đoán trên **test** của các cấu hình chung kết và mốc, từng seed (định dạng ở mục 2.2). Dùng để giảng viên tính lại chỉ số |
+| 6 | `predictions/` | File dự đoán trên **test** của các cấu hình chung kết và mốc, từng seed (định dạng ở mục 2.2; tạo bằng `eval.save_predictions`). Nên kèm file dự đoán **val** của chung kết (`*_val.csv`) và bản chưa temperature scaling (`*uncal*`) để `eval.py grade` chấm được I4. Dùng để giảng viên tính lại chỉ số |
 
 Số thí nghiệm tối thiểu (chi tiết ở GUIDE):
 
