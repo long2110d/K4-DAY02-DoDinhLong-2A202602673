@@ -1,7 +1,5 @@
 """model.py - tạo backbone, đóng băng, nhóm tham số, đếm params/GMAC.
 
-PSEUDO-CODE: bạn tự hoàn thiện mọi hàm có `raise NotImplementedError`.
-
 Giao diện bạn phải giữ:
     build_model(name, pretrained, num_classes, drop_rate, init) -> nn.Module
     freeze_backbone(model)                                        -> None
@@ -9,6 +7,10 @@ Giao diện bạn phải giữ:
     count_params(model) -> float (triệu)     count_gmacs(model, img_size) -> float
 """
 from __future__ import annotations
+
+import timm
+import torch
+import torch.nn as nn
 
 # Gợi ý backbone (GUIDE.md mục 2.1). Tag trọng số của timm có thể đổi theo phiên bản:
 # dùng timm.list_pretrained("resnet50*") để xem, và GHI LẠI tag bạn dùng trong results.xlsx.
@@ -31,25 +33,35 @@ def build_model(name: str, pretrained: bool = True, num_classes: int = 9,
       - "scratch"  : pretrained=False, huấn luyện toàn bộ
       - "frozen"   : pretrained=True, đóng băng backbone, chỉ train head
       - "finetune" : pretrained=True, train toàn bộ
-
-    TODO:
-      - timm.create_model(name, pretrained=..., num_classes=num_classes, drop_rate=...)
-        (timm tự thay head mới; head khởi tạo ngẫu nhiên)
-      - nếu init == "frozen": gọi freeze_backbone(model)
-      - ghi lại tên tag trọng số thực sự được tải (model.pretrained_cfg)
     """
-    raise NotImplementedError("TODO")
+    if init not in ("scratch", "frozen", "finetune"):
+        raise ValueError(f"init không hợp lệ: {init}")
+    model = timm.create_model(name, pretrained=init != "scratch", num_classes=num_classes,
+                              drop_rate=drop_rate)
+    model.init_mode = init
+    if init == "frozen":
+        freeze_backbone(model)
+    cfg = getattr(model, "pretrained_cfg", {}) or {}
+    model.weight_tag = cfg.get("tag") or cfg.get("hf_hub_id") or cfg.get("url") or "random-init"
+    return model
+
+
+def set_train_mode(model) -> None:
+    """model.train(), nhưng nếu backbone bị đóng băng thì giữ phần backbone (BN, dropout) ở eval."""
+    model.train()
+    if getattr(model, "init_mode", None) == "frozen":
+        head = {id(m) for m in model.get_classifier().modules()}
+        for m in model.modules():
+            if id(m) not in head and not any(True for _ in m.children()):
+                m.eval()
 
 
 def freeze_backbone(model) -> None:
     """Đóng băng mọi tham số trừ head.
-
-    TODO:
-      - requires_grad = False cho tham số backbone; head (model.get_classifier()) vẫn train
-      - lưu ý (GUIDE.md mục 3.2): backbone đóng băng thì BatchNorm cũng phải ở chế độ eval.
-        Hãy nghĩ nơi nào trong train loop phải gọi lại model.train() mà vẫn giữ BN ở eval.
     """
-    raise NotImplementedError("TODO")
+    head_ids = {id(p) for p in model.get_classifier().parameters()}
+    for p in model.parameters():
+        p.requires_grad = id(p) in head_ids
 
 
 def param_groups(model, lr_backbone: float, lr_head: float, weight_decay: float):
@@ -58,24 +70,43 @@ def param_groups(model, lr_backbone: float, lr_head: float, weight_decay: float)
     - backbone có ndim > 1: lr = lr_backbone, weight_decay = weight_decay
     - norm và bias của backbone (ndim <= 1): lr = lr_backbone, weight_decay = 0
     - head mới: lr = lr_head (thường gấp 10 lần backbone), weight_decay = weight_decay
-
-    TODO:
-      - bỏ qua tham số requires_grad == False
-      - trả về list[dict] dạng {"params": [...], "lr": ..., "weight_decay": ...}
-      - (trục E) mở rộng: LR theo tầng nếu bạn muốn thử
     """
-    raise NotImplementedError("TODO")
+    head_ids = {id(p) for p in model.get_classifier().parameters()}
+    decay, no_decay, head = [], [], []
+    for p in model.parameters():
+        if not p.requires_grad:
+            continue
+        if id(p) in head_ids:
+            head.append(p)
+        elif p.ndim > 1:
+            decay.append(p)
+        else:
+            no_decay.append(p)
+    groups = [
+        {"params": decay, "lr": lr_backbone, "weight_decay": weight_decay},
+        {"params": no_decay, "lr": lr_backbone, "weight_decay": 0.0},
+        {"params": head, "lr": lr_head, "weight_decay": weight_decay},
+    ]
+    return [g for g in groups if g["params"]]
 
 
 def count_params(model) -> float:
-    """Số tham số (triệu), đếm cả tham số bị đóng băng. TODO."""
-    raise NotImplementedError("TODO")
+    """Số tham số (triệu), đếm cả tham số bị đóng băng."""
+    return sum(p.numel() for p in model.parameters()) / 1e6
 
 
 def count_gmacs(model, img_size: int = 224) -> float:
     """GMAC cho một ảnh 3 x img_size x img_size (slide tính MAC, không phải FLOPs 2x).
 
-    TODO: dùng thư viện đếm (fvcore, ptflops, thop...) hoặc tự đếm bằng hook.
-    Ghi rõ công cụ đã dùng; số có thể lệch vài phần trăm giữa các công cụ.
+    Công cụ: torch.utils.flop_counter.FlopCounterMode (đếm conv/matmul, FLOPs = 2 x MAC) rồi chia 2.
     """
-    raise NotImplementedError("TODO")
+    from torch.utils.flop_counter import FlopCounterMode
+
+    was_training = model.training
+    model.eval()
+    device = next(model.parameters()).device
+    x = torch.zeros(1, 3, img_size, img_size, device=device)
+    with torch.inference_mode(), FlopCounterMode(display=False) as fc:
+        model(x)
+    model.train(was_training)
+    return fc.get_total_flops() / 2 / 1e9
